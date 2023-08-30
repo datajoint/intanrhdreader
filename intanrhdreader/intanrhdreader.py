@@ -445,7 +445,7 @@ def plot_channel(channel_name, result):
         raise Exception('Plotting not possible; channel ', channel_name, ' not found')
         
 # Define load_file function
-def load_file(filename, run_notch=True)):
+def load_file(filename, run_notch=True):
     # Start timing
     tic = time.time()
     
