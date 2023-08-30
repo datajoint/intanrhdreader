@@ -356,7 +356,8 @@ def data_to_result(header, data, data_present):
         
     result['notes'] = header['notes']
     result['frequency_parameters'] = header['frequency_parameters']
-    
+    result['header'] = header
+
     if header['version']['major'] > 1:
         result['reference_channel'] = header['reference_channel']
     
