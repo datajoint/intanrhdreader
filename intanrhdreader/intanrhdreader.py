@@ -445,7 +445,7 @@ def plot_channel(channel_name, result):
         raise Exception('Plotting not possible; channel ', channel_name, ' not found')
         
 # Define load_file function
-def load_file(filename):
+def load_file(filename, run_notch=True)):
     # Start timing
     tic = time.time()
     
@@ -604,7 +604,7 @@ def load_file(filename):
 
         # If the software notch filter was selected during the recording, apply the
         # same notch filter to amplifier data here
-        if header['notch_filter_frequency'] > 0 and header['version']['major'] < 3:
+        if header['notch_filter_frequency'] > 0 and header['version']['major'] < 3 and run_notch:
             print('Applying notch filter...')
 
             print_increment = 10
