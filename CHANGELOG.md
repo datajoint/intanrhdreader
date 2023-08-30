@@ -9,3 +9,4 @@ Observes [Semantic Versioning](https://semver.org/spec/v2.0.0.html) standard and
 - Update - Rename `COPYING` to `LICENSE`
 - Update - Remove `LoadIntanRHD_Python.ipynb`
 - Update - Rename `importrhdutilities.py` to `intanrhdreader.py`
+- Update - In `intanrhdreader.py` and the `load_file` function, remove the `data_present` variable from the return statement
