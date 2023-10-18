@@ -1,1 +1,1 @@
-from .intanrhdreader import load_file
+from .intanrhdreader import load_file, read_header
