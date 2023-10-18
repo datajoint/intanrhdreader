@@ -48,7 +48,7 @@ def read_qstring(fid):
 
 
 # Define read_header function
-def read_header(fid):
+def read_header(fid, verbose=False):
     """Reads the Intan File Format header from the given file."""
 
     # Check 'magic number' at beginning of file to make sure this is an Intan
@@ -63,13 +63,14 @@ def read_header(fid):
     (version["major"], version["minor"]) = struct.unpack("<hh", fid.read(4))
     header["version"] = version
 
-    print("")
-    print(
-        "Reading Intan Technologies RHD2000 Data File, Version {}.{}".format(
-            version["major"], version["minor"]
+    if verbose:
+        print("")
+        print(
+            "Reading Intan Technologies RHD2000 Data File, Version {}.{}".format(
+                version["major"], version["minor"]
+            )
         )
-    )
-    print("")
+        print("")
 
     freq = {}
 
@@ -495,24 +496,24 @@ def read_one_data_block(data, header, indices, fid):
 
 
 # Define data_to_result function
-def data_to_result(header, data, data_present):
+def data_to_result(header, data):
     """Moves the header and data (if present) into a common object."""
 
     result = {}
-    if header["num_amplifier_channels"] > 0 and data_present:
+    if header["num_amplifier_channels"] > 0:
         result["t_amplifier"] = data["t_amplifier"]
-    if header["num_aux_input_channels"] > 0 and data_present:
+    if header["num_aux_input_channels"] > 0:
         result["t_aux_input"] = data["t_aux_input"]
-    if header["num_supply_voltage_channels"] > 0 and data_present:
+    if header["num_supply_voltage_channels"] > 0:
         result["t_supply_voltage"] = data["t_supply_voltage"]
-    if header["num_board_adc_channels"] > 0 and data_present:
+    if header["num_board_adc_channels"] > 0:
         result["t_board_adc"] = data["t_board_adc"]
     if (
         header["num_board_dig_in_channels"] > 0
         or header["num_board_dig_out_channels"] > 0
-    ) and data_present:
+    ):
         result["t_dig"] = data["t_dig"]
-    if header["num_temp_sensor_channels"] > 0 and data_present:
+    if header["num_temp_sensor_channels"] > 0:
         result["t_temp_sensor"] = data["t_temp_sensor"]
 
     if header["num_amplifier_channels"] > 0:
@@ -527,33 +528,27 @@ def data_to_result(header, data, data_present):
 
     if header["num_amplifier_channels"] > 0:
         result["amplifier_channels"] = header["amplifier_channels"]
-        if data_present:
-            result["amplifier_data"] = data["amplifier_data"]
+        result["amplifier_data"] = data["amplifier_data"]
 
     if header["num_aux_input_channels"] > 0:
         result["aux_input_channels"] = header["aux_input_channels"]
-        if data_present:
-            result["aux_input_data"] = data["aux_input_data"]
+        result["aux_input_data"] = data["aux_input_data"]
 
     if header["num_supply_voltage_channels"] > 0:
         result["supply_voltage_channels"] = header["supply_voltage_channels"]
-        if data_present:
-            result["supply_voltage_data"] = data["supply_voltage_data"]
+        result["supply_voltage_data"] = data["supply_voltage_data"]
 
     if header["num_board_adc_channels"] > 0:
         result["board_adc_channels"] = header["board_adc_channels"]
-        if data_present:
-            result["board_adc_data"] = data["board_adc_data"]
+        result["board_adc_data"] = data["board_adc_data"]
 
     if header["num_board_dig_in_channels"] > 0:
         result["board_dig_in_channels"] = header["board_dig_in_channels"]
-        if data_present:
-            result["board_dig_in_data"] = data["board_dig_in_data"]
+        result["board_dig_in_data"] = data["board_dig_in_data"]
 
     if header["num_board_dig_out_channels"] > 0:
         result["board_dig_out_channels"] = header["board_dig_out_channels"]
-        if data_present:
-            result["board_dig_out_data"] = data["board_dig_out_data"]
+        result["board_dig_out_data"] = data["board_dig_out_data"]
 
     return result
 
@@ -616,106 +611,105 @@ def plot_channel(channel_name, result):
 
 
 # Define load_file function
-def load_file(filename, run_notch=True):
+def load_file(filename, run_notch=True, verbose=False):
     # Start timing
     tic = time.time()
-
-    # Open file
-    fid = open(filename, "rb")
     filesize = os.path.getsize(filename)
 
-    # Read file header
-    header = read_header(fid)
+    # Open & read file
+    with open(filename, "rb") as fid:
+        header = read_header(fid)
 
-    # Output a summary of recorded data
-    print(
-        "Found {} amplifier channel{}.".format(
-            header["num_amplifier_channels"], plural(header["num_amplifier_channels"])
-        )
-    )
-    print(
-        "Found {} auxiliary input channel{}.".format(
-            header["num_aux_input_channels"], plural(header["num_aux_input_channels"])
-        )
-    )
-    print(
-        "Found {} supply voltage channel{}.".format(
-            header["num_supply_voltage_channels"],
-            plural(header["num_supply_voltage_channels"]),
-        )
-    )
-    print(
-        "Found {} board ADC channel{}.".format(
-            header["num_board_adc_channels"], plural(header["num_board_adc_channels"])
-        )
-    )
-    print(
-        "Found {} board digital input channel{}.".format(
-            header["num_board_dig_in_channels"],
-            plural(header["num_board_dig_in_channels"]),
-        )
-    )
-    print(
-        "Found {} board digital output channel{}.".format(
-            header["num_board_dig_out_channels"],
-            plural(header["num_board_dig_out_channels"]),
-        )
-    )
-    print(
-        "Found {} temperature sensors channel{}.".format(
-            header["num_temp_sensor_channels"],
-            plural(header["num_temp_sensor_channels"]),
-        )
-    )
-    print("")
-
-    # Determine how many samples the data file contains
-    bytes_per_block = get_bytes_per_data_block(header)
-
-    # Calculate how many data blocks are present
-    data_present = False
-    bytes_remaining = filesize - fid.tell()
-    if bytes_remaining > 0:
-        data_present = True
-
-    if bytes_remaining % bytes_per_block != 0:
-        raise Exception(
-            "Something is wrong with file size : should have a whole number of data blocks"
-        )
-
-    num_data_blocks = int(bytes_remaining / bytes_per_block)
-
-    # Calculate how many samples of each signal type are present
-    num_amplifier_samples = header["num_samples_per_data_block"] * num_data_blocks
-    num_aux_input_samples = int(
-        (header["num_samples_per_data_block"] / 4) * num_data_blocks
-    )
-    num_supply_voltage_samples = 1 * num_data_blocks
-    num_board_adc_samples = header["num_samples_per_data_block"] * num_data_blocks
-    num_board_dig_in_samples = header["num_samples_per_data_block"] * num_data_blocks
-    num_board_dig_out_samples = header["num_samples_per_data_block"] * num_data_blocks
-
-    # Calculate how much time has been recorded
-    record_time = num_amplifier_samples / header["sample_rate"]
-
-    # Output a summary of contents of header file
-    if data_present:
-        print(
-            "File contains {:0.3f} seconds of data.  Amplifiers were sampled at {:0.2f} kS/s.".format(
-                record_time, header["sample_rate"] / 1000
+        if verbose:
+            # Output a summary of recorded data
+            print(
+                "Found {} amplifier channel{}.".format(
+                    header["num_amplifier_channels"],
+                    plural(header["num_amplifier_channels"]),
+                )
             )
-        )
-    else:
-        print(
-            "Header file contains no data.  Amplifiers were sampled at {:0.2f} kS/s.".format(
-                header["sample_rate"] / 1000
+            print(
+                "Found {} auxiliary input channel{}.".format(
+                    header["num_aux_input_channels"],
+                    plural(header["num_aux_input_channels"]),
+                )
             )
+            print(
+                "Found {} supply voltage channel{}.".format(
+                    header["num_supply_voltage_channels"],
+                    plural(header["num_supply_voltage_channels"]),
+                )
+            )
+            print(
+                "Found {} board ADC channel{}.".format(
+                    header["num_board_adc_channels"],
+                    plural(header["num_board_adc_channels"]),
+                )
+            )
+            print(
+                "Found {} board digital input channel{}.".format(
+                    header["num_board_dig_in_channels"],
+                    plural(header["num_board_dig_in_channels"]),
+                )
+            )
+            print(
+                "Found {} board digital output channel{}.".format(
+                    header["num_board_dig_out_channels"],
+                    plural(header["num_board_dig_out_channels"]),
+                )
+            )
+            print(
+                "Found {} temperature sensors channel{}.".format(
+                    header["num_temp_sensor_channels"],
+                    plural(header["num_temp_sensor_channels"]),
+                )
+            )
+            print("")
+
+        # Determine how many samples the data file contains
+        bytes_per_block = get_bytes_per_data_block(header)
+
+        # Calculate how many data blocks are present
+        bytes_remaining = filesize - fid.tell()
+        if not bytes_remaining > 0:
+            raise Exception(f"{filename} doesn't contain any data")
+
+        if bytes_remaining % bytes_per_block != 0:
+            raise Exception(
+                f"Something is wrong with file size in {filename} : should have a whole number of data blocks"
+            )
+
+        num_data_blocks = int(bytes_remaining / bytes_per_block)
+
+        # Calculate how many samples of each signal type are present
+        num_amplifier_samples = header["num_samples_per_data_block"] * num_data_blocks
+        num_aux_input_samples = int(
+            (header["num_samples_per_data_block"] / 4) * num_data_blocks
+        )
+        num_supply_voltage_samples = 1 * num_data_blocks
+        num_board_adc_samples = header["num_samples_per_data_block"] * num_data_blocks
+        num_board_dig_in_samples = (
+            header["num_samples_per_data_block"] * num_data_blocks
+        )
+        num_board_dig_out_samples = (
+            header["num_samples_per_data_block"] * num_data_blocks
         )
 
-    if data_present:
+        if verbose:
+            # Calculate how much time has been recorded
+            record_time = num_amplifier_samples / header["sample_rate"]
+
+            # Output a summary of contents of header file
+            print(
+                "File contains {:0.3f} seconds of data.  Amplifiers were sampled at {:0.2f} kS/s.".format(
+                    record_time, header["sample_rate"] / 1000
+                )
+            )
+
         # Pre-allocate memory for data
-        print("")
-        print("Allocating memory for data...")
+        if verbose:
+            print("")
+            print("Allocating memory for data...")
 
         data = {}
         if (header["version"]["major"] == 1 and header["version"]["minor"] >= 2) or (
@@ -761,7 +755,8 @@ def load_file(filename, run_notch=True):
         data["board_dig_out_raw"] = np.zeros(num_board_dig_out_samples, dtype=np.uint)
 
         # Read sampled data from file.
-        print("Reading data from file...")
+        if verbose:
+            print("Reading data from file...")
 
         # Initialize indices used in looping
         indices = {}
@@ -785,122 +780,119 @@ def load_file(filename, run_notch=True):
             indices["board_dig_in"] += header["num_samples_per_data_block"]
             indices["board_dig_out"] += header["num_samples_per_data_block"]
 
-            fraction_done = 100 * (1.0 * i / num_data_blocks)
-            if fraction_done >= percent_done:
-                print("{}% done...".format(percent_done))
-                percent_done = percent_done + print_increment
-
-        print("100% done...")
+            if verbose:
+                fraction_done = 100 * (1.0 * i / num_data_blocks)
+                if fraction_done >= percent_done:
+                    print("{}% done...".format(percent_done))
+                    percent_done = percent_done + print_increment
+        if verbose:
+            print("100% done...")
 
         # Make sure we have read exactly the right amount of data
         bytes_remaining = filesize - fid.tell()
         if bytes_remaining != 0:
             raise Exception("Error: End of file not reached.")
 
-    fid.close()
-
-    if data_present:
+    if verbose:
         print("Parsing data...")
 
-        # Extract digital input channels to separate variables
-        for i in range(header["num_board_dig_in_channels"]):
-            data["board_dig_in_data"][i, :] = np.not_equal(
-                np.bitwise_and(
-                    data["board_dig_in_raw"],
-                    (1 << header["board_dig_in_channels"][i]["native_order"]),
-                ),
-                0,
-            )
-
-        # Extract digital output channels to separate variables
-        for i in range(header["num_board_dig_out_channels"]):
-            data["board_dig_out_data"][i, :] = np.not_equal(
-                np.bitwise_and(
-                    data["board_dig_out_raw"],
-                    (1 << header["board_dig_out_channels"][i]["native_order"]),
-                ),
-                0,
-            )
-
-        # Scale voltage levels appropriately
-        data["amplifier_data"] = np.multiply(
-            0.195, (data["amplifier_data"].astype(np.int32) - 32768)
-        )  # units = microvolts
-        data["aux_input_data"] = np.multiply(
-            37.4e-6, data["aux_input_data"]
-        )  # units = volts
-        data["supply_voltage_data"] = np.multiply(
-            74.8e-6, data["supply_voltage_data"]
-        )  # units = volts
-        if header["eval_board_mode"] == 1:
-            data["board_adc_data"] = np.multiply(
-                152.59e-6, (data["board_adc_data"].astype(np.int32) - 32768)
-            )  # units = volts
-        elif header["eval_board_mode"] == 13:
-            data["board_adc_data"] = np.multiply(
-                312.5e-6, (data["board_adc_data"].astype(np.int32) - 32768)
-            )  # units = volts
-        else:
-            data["board_adc_data"] = np.multiply(
-                50.354e-6, data["board_adc_data"]
-            )  # units = volts
-        data["temp_sensor_data"] = np.multiply(
-            0.01, data["temp_sensor_data"]
-        )  # units = deg C
-
-        # Check for gaps in timestamps
-        num_gaps = np.sum(
-            np.not_equal(data["t_amplifier"][1:] - data["t_amplifier"][:-1], 1)
+    # Extract digital input channels to separate variables
+    for i in range(header["num_board_dig_in_channels"]):
+        data["board_dig_in_data"][i, :] = np.not_equal(
+            np.bitwise_and(
+                data["board_dig_in_raw"],
+                (1 << header["board_dig_in_channels"][i]["native_order"]),
+            ),
+            0,
         )
-        if num_gaps == 0:
-            print("No missing timestamps in data.")
-        else:
-            print(
-                "Warning: {0} gaps in timestamp data found.  Time scale will not be uniform!".format(
-                    num_gaps
-                )
+
+    # Extract digital output channels to separate variables
+    for i in range(header["num_board_dig_out_channels"]):
+        data["board_dig_out_data"][i, :] = np.not_equal(
+            np.bitwise_and(
+                data["board_dig_out_raw"],
+                (1 << header["board_dig_out_channels"][i]["native_order"]),
+            ),
+            0,
+        )
+
+    # Scale voltage levels appropriately
+    data["amplifier_data"] = np.multiply(
+        0.195, (data["amplifier_data"].astype(np.int32) - 32768)
+    )  # units = microvolts
+    data["aux_input_data"] = np.multiply(
+        37.4e-6, data["aux_input_data"]
+    )  # units = volts
+    data["supply_voltage_data"] = np.multiply(
+        74.8e-6, data["supply_voltage_data"]
+    )  # units = volts
+    if header["eval_board_mode"] == 1:
+        data["board_adc_data"] = np.multiply(
+            152.59e-6, (data["board_adc_data"].astype(np.int32) - 32768)
+        )  # units = volts
+    elif header["eval_board_mode"] == 13:
+        data["board_adc_data"] = np.multiply(
+            312.5e-6, (data["board_adc_data"].astype(np.int32) - 32768)
+        )  # units = volts
+    else:
+        data["board_adc_data"] = np.multiply(
+            50.354e-6, data["board_adc_data"]
+        )  # units = volts
+    data["temp_sensor_data"] = np.multiply(
+        0.01, data["temp_sensor_data"]
+    )  # units = deg C
+
+    # Check for gaps in timestamps
+    num_gaps = np.sum(
+        np.not_equal(data["t_amplifier"][1:] - data["t_amplifier"][:-1], 1)
+    )
+    if num_gaps != 0:
+        print(
+            "Warning: {0} gaps in timestamp data found.  Time scale will not be uniform!".format(
+                num_gaps
             )
+        )
 
-        # Scale time steps (units = seconds)
-        data["t_amplifier"] = data["t_amplifier"] / header["sample_rate"]
-        data["t_aux_input"] = data["t_amplifier"][range(0, len(data["t_amplifier"]), 4)]
-        data["t_supply_voltage"] = data["t_amplifier"][
-            range(0, len(data["t_amplifier"]), header["num_samples_per_data_block"])
-        ]
-        data["t_board_adc"] = data["t_amplifier"]
-        data["t_dig"] = data["t_amplifier"]
-        data["t_temp_sensor"] = data["t_supply_voltage"]
+    # Scale time steps (units = seconds)
+    data["t_amplifier"] = data["t_amplifier"] / header["sample_rate"]
+    data["t_aux_input"] = data["t_amplifier"][range(0, len(data["t_amplifier"]), 4)]
+    data["t_supply_voltage"] = data["t_amplifier"][
+        range(0, len(data["t_amplifier"]), header["num_samples_per_data_block"])
+    ]
+    data["t_board_adc"] = data["t_amplifier"]
+    data["t_dig"] = data["t_amplifier"]
+    data["t_temp_sensor"] = data["t_supply_voltage"]
 
-        # If the software notch filter was selected during the recording, apply the
-        # same notch filter to amplifier data here
-        if (
-            header["notch_filter_frequency"] > 0
-            and header["version"]["major"] < 3
-            and run_notch
-        ):
+    # If the software notch filter was selected during the recording, apply the
+    # same notch filter to amplifier data here
+    if (
+        header["notch_filter_frequency"] > 0
+        and header["version"]["major"] < 3
+        and run_notch
+    ):
+        if verbose:
             print("Applying notch filter...")
-
             print_increment = 10
             percent_done = print_increment
-            for i in range(header["num_amplifier_channels"]):
-                data["amplifier_data"][i, :] = notch_filter(
-                    data["amplifier_data"][i, :],
-                    header["sample_rate"],
-                    header["notch_filter_frequency"],
-                    10,
-                )
 
+        for i in range(header["num_amplifier_channels"]):
+            data["amplifier_data"][i, :] = notch_filter(
+                data["amplifier_data"][i, :],
+                header["sample_rate"],
+                header["notch_filter_frequency"],
+                10,
+            )
+            if verbose:
                 fraction_done = 100 * (i / header["num_amplifier_channels"])
                 if fraction_done >= percent_done:
                     print("{}% done...".format(percent_done))
                     percent_done += print_increment
-    else:
-        data = []
 
     # Move variables to result struct
-    result = data_to_result(header, data, data_present)
+    result = data_to_result(header, data)
 
-    print("Done!  Elapsed time: {0:0.1f} seconds".format(time.time() - tic))
+    if verbose:
+        print("Done!  Elapsed time: {0:0.1f} seconds".format(time.time() - tic))
 
     return result
 
