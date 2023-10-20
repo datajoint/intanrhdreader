@@ -847,7 +847,7 @@ def load_file(filename, run_notch=True, verbose=False):
         np.not_equal(data["t_amplifier"][1:] - data["t_amplifier"][:-1], 1)
     )
     if num_gaps != 0:
-        print(
+        raise Exception(
             "Warning: {0} gaps in timestamp data found.  Time scale will not be uniform!".format(
                 num_gaps
             )
