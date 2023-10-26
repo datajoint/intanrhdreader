@@ -3,6 +3,11 @@
 Observes [Semantic Versioning](https://semver.org/spec/v2.0.0.html) standard and
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) convention.
 
+## 1.1.0 - 2023-08-29
+
+- Add - `verbose` flag to suppress print messages
+- Add - `read_header` to `__init__.py`
+
 ## 1.0.0 - 2023-08-29
 
 - Add - Create installable package by adding `setup.py` and `version.py`
